@@ -4,6 +4,7 @@ import sys
 import re
 from urlparse import urljoin
 import requests
+import html2text
 from bs4 import BeautifulSoup as S
 
 def is_page_link(href):
@@ -25,16 +26,37 @@ def get_all(html):
 def read_page(url):
     try:
         r = requests.get(url)
-        if r.status_code != 200:
-            print_error(url)
-        else:
-            print(url+' - OK')
-            html = r.text
-            links = get_all(html)
-            fixed_links = [urljoin(url, link) for link in links]
-            test_links(url, fixed_links)
     except Exception:
-            print_error(url)
+        print_error(url)
+        return
+    if r.status_code != 200:
+        print_error(url)
+    else:
+        print(url+' - OK')
+        html = r.content
+        #links = get_all(html)
+        #fixed_links = [urljoin(url, link) for link in links]
+        #test_links(url, fixed_links)
+        #test_orpho(url, html)
+        #test_markup(url, html)
+        test_tidy(url, html)
+
+def get_orpho_errors(xml):
+    xsoup = S(xml, 'xml')
+    return [l.string for l in xsoup.find_all('word')]
+
+def test_orpho(url, html):
+    txt = html2text.html2text(html)
+    payload = {'text': txt, 'format': 'plain'}
+    r = requests.post("http://speller.yandex.net/services/spellservice/checkText", data=payload)
+    print(get_orpho_errors(r.text))
+
+
+def test_markup(url, html):
+    headers = {'Content-Type': 'text/html; charset=utf-8'}
+    #files=dict(out='xml', doc=url)
+    r = requests.post('https://validator.w3.org/nu/?out=xml', data=html, headers=headers)
+    print(r.text.encode('utf-8'))
 
 def test_links(url, links):
     for link in links:
